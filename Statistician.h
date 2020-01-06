@@ -74,7 +74,7 @@ namespace Statistician
 // *********************************************************************************************************
 // DEFINITIONS
 
-Statistician::CStatistician::CStatistician(Pylon::CInstantCamera &camera)
+inline Statistician::CStatistician::CStatistician(Pylon::CInstantCamera &camera)
 {
 	m_camera = &camera;
 	m_stop.store(true);
@@ -104,12 +104,12 @@ Statistician::CStatistician::CStatistician(Pylon::CInstantCamera &camera)
 	tlLastErrorStatusText = "-1";
 }
 
-Statistician::CStatistician::~CStatistician()
+inline Statistician::CStatistician::~CStatistician()
 {
 	this->Stop();
 }
 
-bool Statistician::CStatistician::CheckStatistics()
+inline bool Statistician::CStatistician::CheckStatistics()
 {
 	try
 	{
@@ -264,14 +264,14 @@ bool Statistician::CStatistician::CheckStatistics()
 	}
 }
 
-bool Statistician::CStatistician::Start()
+inline bool Statistician::CStatistician::Start()
 {
 	m_stop.store(false);
 	m_tstats = std::thread(&Statistician::CStatistician::CheckStatistics, this);
 	return true;
 }
 
-bool Statistician::CStatistician::Stop()
+inline bool Statistician::CStatistician::Stop()
 {
 	m_stop.store(true);
 	if (m_tstats.joinable())
