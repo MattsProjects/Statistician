@@ -139,7 +139,7 @@ inline bool Statistician::CStatistician::CheckStatistics()
 				if (GenApi::IsReadable(ptrInteger))
 					failedBuffers = ptrInteger->GetValue();
 
-				ptrInteger = grabber.GetNode("TemperatureAbs");
+				ptrInteger = control.GetNode("TemperatureAbs");
 				if (GenApi::IsReadable(ptrInteger))
 					currentTemperature = ptrInteger->GetValue();
 
@@ -175,15 +175,15 @@ inline bool Statistician::CStatistician::CheckStatistics()
 					lastErrorList.insert(lastError);
 				}
 
-				ptrEnumeration = grabber.GetNode("TemperatureState");
+				ptrEnumeration = control.GetNode("TemperatureState");
 				if (GenApi::IsReadable(ptrEnumeration))
 					temperatureState = ptrEnumeration->ToString();
 
-				ptrBool = grabber.GetNode("CriticalTemperature");
+				ptrBool = control.GetNode("CriticalTemperature");
 				if (GenApi::IsReadable(ptrBool))
 					criticalTemp = ptrBool->GetValue();
 
-				ptrBool = grabber.GetNode("OverTemperature");
+				ptrBool = control.GetNode("OverTemperature");
 				if (GenApi::IsReadable(ptrBool))
 					overTemp = ptrBool->GetValue();
 
