@@ -36,7 +36,9 @@ namespace Statistician
 
 	public:
 		CStatistician(Pylon::CInstantCamera &camera);
+		CStatistician();
 		~CStatistician();
+		void Initialize(Pylon::CInstantCamera &camera);
 		bool Start();
 		bool Stop();
 
@@ -73,6 +75,35 @@ namespace Statistician
 
 // *********************************************************************************************************
 // DEFINITIONS
+inline Statistician::CStatistician::CStatistician()
+{
+	m_stop.store(true);
+
+	criticalTemp = false;
+	overTemp = false;
+	totalBuffers = -1;
+	failedBuffers = -1;
+	bufferUnderruns = -1;
+	totalPackets = -1;
+	resendRequests = -1;
+	resendPackets = -1;
+	failedPackets = -1;
+	lastFailedBufferStatus = -1;
+	readPipeResetCount = -1;
+	writePipeResetCount = -1;
+	readOperationsFailedCount = -1;
+	writeOperationsFailedCount = -1;
+	tlLastErrorStatus = -1;
+	missedFrameCount = -1;
+	resyncCount = -1;
+	lastBlockID = -1;
+	currentTemperature = -1;
+	lastFailedBufferStatusText = "-1";
+	lastError = "-1";
+	temperatureState = "-1";
+	tlLastErrorStatusText = "-1";
+}
+
 
 inline Statistician::CStatistician::CStatistician(Pylon::CInstantCamera &camera)
 {
@@ -109,6 +140,10 @@ inline Statistician::CStatistician::~CStatistician()
 	this->Stop();
 }
 
+inline void Statistician::CStatistician::Initialize(Pylon::CInstantCamera &camera)
+{
+	m_camera = &camera;
+}
 inline bool Statistician::CStatistician::CheckStatistics()
 {
 	try
