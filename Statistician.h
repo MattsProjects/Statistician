@@ -32,6 +32,8 @@ namespace Statistician
 		Pylon::CInstantCamera *m_camera;
 		std::thread m_tstats;
 		std::atomic<bool> m_stop;
+		Pylon::String_t m_deviceClass;
+		std::stringstream m_strStatistics;
 		bool CheckStatistics();
 
 	public:
@@ -41,6 +43,7 @@ namespace Statistician
 		void Initialize(Pylon::CInstantCamera &camera);
 		bool Start();
 		bool Stop();
+		std::string PrintStatistics();
 
 		// possible available statistics
 		int64_t totalBuffers;
@@ -153,7 +156,7 @@ inline bool Statistician::CStatistician::CheckStatistics()
 			GenApi::INodeMap &control = m_camera->GetNodeMap();
 			GenApi::INodeMap &grabber = m_camera->GetStreamGrabberNodeMap();
 			GenApi::INodeMap &transport = m_camera->GetTLNodeMap();
-			Pylon::String_t deviceClass = m_camera->GetDeviceInfo().GetDeviceClass();
+			m_deviceClass = m_camera->GetDeviceInfo().GetDeviceClass();
 
 			GenApi::CIntegerPtr ptrInteger;
 			GenApi::CStringPtr ptrString;
@@ -222,7 +225,7 @@ inline bool Statistician::CStatistician::CheckStatistics()
 				if (GenApi::IsReadable(ptrBool))
 					overTemp = ptrBool->GetValue();
 
-				if (deviceClass == Pylon::BaslerGigEDeviceClass)
+				if (m_deviceClass == Pylon::BaslerGigEDeviceClass)
 				{
 					ptrInteger = grabber.GetNode("Statistic_Buffer_Underrun_Count");
 					if (GenApi::IsReadable(ptrInteger))
@@ -245,7 +248,7 @@ inline bool Statistician::CStatistician::CheckStatistics()
 						failedPackets = ptrInteger->GetValue();
 				}
 
-				if (deviceClass == Pylon::BaslerUsbDeviceClass)
+				if (m_deviceClass == Pylon::BaslerUsbDeviceClass)
 				{
 					ptrInteger = grabber.GetNode("Statistic_Missed_Frame_Count");
 					if (GenApi::IsReadable(ptrInteger))
@@ -313,6 +316,69 @@ inline bool Statistician::CStatistician::Stop()
 		m_tstats.join();
 
 	return true;
+}
+
+inline std::string Statistician::CStatistician::PrintStatistics()
+{
+	try
+	{
+		m_strStatistics << " Statistics:" << std::endl;
+
+		if (m_deviceClass == Pylon::BaslerUsbDeviceClass)
+		{
+			m_strStatistics << "  Grab Engine:" << std::endl;
+			m_strStatistics << "   Total Processed Buffers                : " << totalBuffers << std::endl;
+			m_strStatistics << "   Total Failed Buffers                   : " << failedBuffers << std::endl;
+			m_strStatistics << "   Last BlockID (starts at 0)             : " << lastBlockID << std::endl;
+			m_strStatistics << "   Total Missed Frames                    : " << missedFrameCount << std::endl;
+			m_strStatistics << "   Last Failed Buffer Status              : " << lastFailedBufferStatus << std::endl;
+			m_strStatistics << "   Last Failed Buffer Status Text         : " << lastFailedBufferStatusText.substr(0, lastFailedBufferStatusText.size() - 1) << std::endl; // remove the newline built into this error message string.
+			for (std::set<Pylon::String_t>::iterator it = lastFailedBufferStatusTextList.begin(); it != lastFailedBufferStatusTextList.end(); ++it)
+				m_strStatistics << "   Other Failed Buffer Status Text logged : " << *it; // newline is built into this error message string.
+
+			m_strStatistics << "  Transport Layer:" << std::endl;
+			m_strStatistics << "   Read Pipe Reset Count                  : " << readPipeResetCount << std::endl;
+			m_strStatistics << "   Write Pipe Reset Count                 : " << writePipeResetCount << std::endl;
+			m_strStatistics << "   Read Operations Failed Count           : " << readOperationsFailedCount << std::endl;
+			m_strStatistics << "   Write Operations Failed Count          : " << writeOperationsFailedCount << std::endl;
+			m_strStatistics << "   Last Error Status                      : " << tlLastErrorStatus << std::endl;
+			m_strStatistics << "   Last Error Status Text                 : " << tlLastErrorStatusText.substr(0, tlLastErrorStatusText.size() - 1) << std::endl; // remove the newline built into this error message string.
+			for (std::set<Pylon::String_t>::iterator it = tlLastErrorStatusTextList.begin(); it != tlLastErrorStatusTextList.end(); ++it)
+				m_strStatistics << "   Other Error Status Text logged         : " << *it; // newline is built into this error message string.
+		}
+
+		if (m_deviceClass == Pylon::BaslerGigEDeviceClass)
+		{
+			m_strStatistics << "  Camera:" << std::endl;
+			m_strStatistics << "   Last Error                             : " << lastError.substr(0, tlLastErrorStatusText.size() - 1) << std::endl;
+			for (std::set<Pylon::String_t>::iterator it = lastErrorList.begin(); it != lastErrorList.end(); ++it)
+				m_strStatistics << "   Other Errors logged                    : " << *it; // newline is built into this error message string.
+			m_strStatistics << "  Grab Engine:" << std::endl;
+			m_strStatistics << "   Total Frames Received                  : " << totalBuffers << std::endl;
+			m_strStatistics << "   Total Failed Buffers                   : " << failedBuffers << std::endl;
+			m_strStatistics << "   Total buffer underruns                 : " << bufferUnderruns << std::endl;
+
+			m_strStatistics << "  Transport Layer:" << std::endl;
+			m_strStatistics << "   Total Packets Received                 : " << totalPackets << std::endl;
+			m_strStatistics << "   Total Packet Resend Requests           : " << resendRequests << std::endl;
+			m_strStatistics << "   Total Resent Packets                   : " << resendPackets << std::endl;
+			// TODO Issue #22
+			// I get failed packets = 0 even when results fail?
+			m_strStatistics << "   Total Failed (unrecoverable) Packets   : " << failedPackets << std::endl;
+		}
+
+		return m_strStatistics.str();
+	}
+	catch (GenICam::GenericException& e)
+	{
+		std::cout << __FUNCTION__ << e.GetDescription() << std::endl; // just to satisfy compilier warning about unreferenced local variable.
+		return m_strStatistics.str();
+	}
+	catch (std::exception& e)
+	{
+		std::cout << __FUNCTION__ << e.what() << std::endl; // just to satisfy compilier warning about unreferenced local variable.
+		return m_strStatistics.str();
+	}
 }
 
 // *********************************************************************************************************
