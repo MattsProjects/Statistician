@@ -30,14 +30,16 @@ namespace Statistician
 	{
 	private:
 		Pylon::CInstantCamera *m_camera;
+		Pylon::String_t m_deviceClass;
+		GenApi::CPortPtr m_devicePort;
 		std::thread m_tstats;
 		std::atomic<bool> m_stop;
-		Pylon::String_t m_deviceClass;
 		std::stringstream m_strStatistics;
-		bool CheckStatistics();
+		bool m_isInitialized;
+		bool CheckStatistics();		
 
 	public:
-		CStatistician(Pylon::CInstantCamera &camera);
+		//CStatistician(Pylon::CInstantCamera &camera);
 		CStatistician();
 		~CStatistician();
 		void Initialize(Pylon::CInstantCamera &camera);
@@ -65,7 +67,6 @@ namespace Statistician
 		Pylon::String_t temperatureState;
 		bool criticalTemp;
 		bool overTemp;
-
 		int64_t readPipeResetCount;
 		int64_t writePipeResetCount;
 		int64_t readOperationsFailedCount;
@@ -73,6 +74,12 @@ namespace Statistician
 		int64_t tlLastErrorStatus;
 		Pylon::String_t tlLastErrorStatusText;
 		std::set<Pylon::String_t> tlLastErrorStatusTextList;
+		uint64_t EPU;
+		uint64_t PE;
+		uint64_t UR;
+		uint64_t EPR;
+		uint64_t LE;
+		uint64_t LR;
 	};
 }
 
@@ -80,62 +87,6 @@ namespace Statistician
 // DEFINITIONS
 inline Statistician::CStatistician::CStatistician()
 {
-	m_stop.store(true);
-
-	criticalTemp = false;
-	overTemp = false;
-	totalBuffers = -1;
-	failedBuffers = -1;
-	bufferUnderruns = -1;
-	totalPackets = -1;
-	resendRequests = -1;
-	resendPackets = -1;
-	failedPackets = -1;
-	lastFailedBufferStatus = -1;
-	readPipeResetCount = -1;
-	writePipeResetCount = -1;
-	readOperationsFailedCount = -1;
-	writeOperationsFailedCount = -1;
-	tlLastErrorStatus = -1;
-	missedFrameCount = -1;
-	resyncCount = -1;
-	lastBlockID = -1;
-	currentTemperature = -1;
-	lastFailedBufferStatusText = "-1";
-	lastError = "-1";
-	temperatureState = "-1";
-	tlLastErrorStatusText = "-1";
-}
-
-
-inline Statistician::CStatistician::CStatistician(Pylon::CInstantCamera &camera)
-{
-	m_camera = &camera;
-	m_stop.store(true);
-
-	criticalTemp = false;
-	overTemp = false;
-	totalBuffers = -1;
-	failedBuffers = -1;
-	bufferUnderruns = -1;
-	totalPackets = -1;
-	resendRequests = -1;
-	resendPackets = -1;
-	failedPackets = -1;
-	lastFailedBufferStatus = -1;
-	readPipeResetCount = -1;
-	writePipeResetCount = -1;
-	readOperationsFailedCount = -1;
-	writeOperationsFailedCount = -1;
-	tlLastErrorStatus = -1;
-	missedFrameCount = -1;
-	resyncCount = -1;
-	lastBlockID = -1;
-	currentTemperature = -1;
-	lastFailedBufferStatusText = "-1";
-	lastError = "-1";
-	temperatureState = "-1";
-	tlLastErrorStatusText = "-1";
 }
 
 inline Statistician::CStatistician::~CStatistician()
@@ -145,7 +96,55 @@ inline Statistician::CStatistician::~CStatistician()
 
 inline void Statistician::CStatistician::Initialize(Pylon::CInstantCamera &camera)
 {
-	m_camera = &camera;
+	try
+	{
+		m_stop.store(true);
+
+		criticalTemp = false;
+		overTemp = false;
+		totalBuffers = -1;
+		failedBuffers = -1;
+		bufferUnderruns = -1;
+		totalPackets = -1;
+		resendRequests = -1;
+		resendPackets = -1;
+		failedPackets = -1;
+		lastFailedBufferStatus = -1;
+		readPipeResetCount = -1;
+		writePipeResetCount = -1;
+		readOperationsFailedCount = -1;
+		writeOperationsFailedCount = -1;
+		tlLastErrorStatus = -1;
+		missedFrameCount = -1;
+		resyncCount = -1;
+		lastBlockID = -1;
+		currentTemperature = -1;
+		lastFailedBufferStatusText = "-1";
+		lastError = "-1";
+		temperatureState = "-1";
+		tlLastErrorStatusText = "-1";
+		EPU = 0;
+		PE = 0;
+		UR = 0;
+		EPR = 0;
+		LE = 0;
+		LR = 0;
+
+		m_camera = &camera;
+		m_deviceClass = m_camera->GetDeviceInfo().GetDeviceClass();
+		m_devicePort = camera.GetNodeMap().GetNode("Device");
+		m_isInitialized = true;
+	}
+	catch (GenICam::GenericException &e)
+	{
+		std::cout << __FUNCTION__ << e.GetDescription() << std::endl;
+		m_isInitialized = false;
+	}
+	catch (std::exception &e)
+	{
+		std::cout << __FUNCTION__ << e.what() << std::endl;
+		m_isInitialized = false;
+	}
 }
 inline bool Statistician::CStatistician::CheckStatistics()
 {
@@ -153,10 +152,9 @@ inline bool Statistician::CStatistician::CheckStatistics()
 	{
 		if (m_camera->IsOpen())
 		{
-			GenApi::INodeMap &control = m_camera->GetNodeMap();
-			GenApi::INodeMap &grabber = m_camera->GetStreamGrabberNodeMap();
-			GenApi::INodeMap &transport = m_camera->GetTLNodeMap();
-			m_deviceClass = m_camera->GetDeviceInfo().GetDeviceClass();
+			GenApi::INodeMap& m_control = m_camera->GetNodeMap();
+			GenApi::INodeMap& m_grabber = m_camera->GetStreamGrabberNodeMap();
+			GenApi::INodeMap& m_transport = m_camera->GetTLNodeMap();
 
 			GenApi::CIntegerPtr ptrInteger;
 			GenApi::CStringPtr ptrString;
@@ -165,28 +163,28 @@ inline bool Statistician::CStatistician::CheckStatistics()
 
 			while (m_stop.load() == false)
 			{
-				ptrInteger = grabber.GetNode("Statistic_Last_Failed_Buffer_Status");
+				ptrInteger = m_grabber.GetNode("Statistic_Last_Failed_Buffer_Status");
 				if (GenApi::IsReadable(ptrInteger))
 					lastFailedBufferStatus = ptrInteger->GetValue();
 
-				ptrInteger = grabber.GetNode("Statistic_Total_Buffer_Count");
+				ptrInteger = m_grabber.GetNode("Statistic_Total_Buffer_Count");
 				if (GenApi::IsReadable(ptrInteger))
 					totalBuffers = ptrInteger->GetValue();
 
-				ptrInteger = grabber.GetNode("Statistic_Failed_Buffer_Count");
+				ptrInteger = m_grabber.GetNode("Statistic_Failed_Buffer_Count");
 				if (GenApi::IsReadable(ptrInteger))
 					failedBuffers = ptrInteger->GetValue();
 
-				ptrInteger = control.GetNode("TemperatureAbs");
+				ptrInteger = m_control.GetNode("TemperatureAbs");
 				if (GenApi::IsReadable(ptrInteger))
 					currentTemperature = ptrInteger->GetValue();
 
-				ptrInteger = transport.GetNode("Statistic_Last_Error_Status");
+				ptrInteger = m_transport.GetNode("Statistic_Last_Error_Status");
 				if (GenApi::IsReadable(ptrInteger))
 					tlLastErrorStatus = ptrInteger->GetValue();
 
 				GenApi::CStringPtr ptrTLLastErrorStatusText;
-				ptrTLLastErrorStatusText = transport.GetNode("Statistic_Last_Error_Status_Text");
+				ptrTLLastErrorStatusText = m_transport.GetNode("Statistic_Last_Error_Status_Text");
 				if (GenApi::IsReadable(ptrTLLastErrorStatusText))
 				{
 					tlLastErrorStatusText = ptrTLLastErrorStatusText->GetValue();
@@ -196,7 +194,7 @@ inline bool Statistician::CStatistician::CheckStatistics()
 						tlLastErrorStatusTextList.insert(tlLastErrorStatusText);
 				}
 
-				ptrString = grabber.GetNode("Statistic_Last_Failed_Buffer_Status_Text");
+				ptrString = m_grabber.GetNode("Statistic_Last_Failed_Buffer_Status_Text");
 				if (GenApi::IsReadable(ptrString))
 				{
 					lastFailedBufferStatusText = ptrString->GetValue();
@@ -206,77 +204,84 @@ inline bool Statistician::CStatistician::CheckStatistics()
 						lastFailedBufferStatusTextList.insert(lastFailedBufferStatusText);
 				}
 
-				ptrEnumeration = grabber.GetNode("LastError");
+				ptrEnumeration = m_grabber.GetNode("LastError");
 				if (GenApi::IsReadable(ptrEnumeration))
 				{
 					lastError = ptrEnumeration->ToString();
 					lastErrorList.insert(lastError);
 				}
 
-				ptrEnumeration = control.GetNode("TemperatureState");
+				ptrEnumeration = m_control.GetNode("TemperatureState");
 				if (GenApi::IsReadable(ptrEnumeration))
 					temperatureState = ptrEnumeration->ToString();
 
-				ptrBool = control.GetNode("CriticalTemperature");
+				ptrBool = m_control.GetNode("CriticalTemperature");
 				if (GenApi::IsReadable(ptrBool))
 					criticalTemp = ptrBool->GetValue();
 
-				ptrBool = control.GetNode("OverTemperature");
+				ptrBool = m_control.GetNode("OverTemperature");
 				if (GenApi::IsReadable(ptrBool))
 					overTemp = ptrBool->GetValue();
 
 				if (m_deviceClass == Pylon::BaslerGigEDeviceClass)
 				{
-					ptrInteger = grabber.GetNode("Statistic_Buffer_Underrun_Count");
+					ptrInteger = m_grabber.GetNode("Statistic_Buffer_Underrun_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						bufferUnderruns = ptrInteger->GetValue();
 
-					ptrInteger = grabber.GetNode("Statistic_Total_Packet_Count");
+					ptrInteger = m_grabber.GetNode("Statistic_Total_Packet_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						totalPackets = ptrInteger->GetValue();
 
-					ptrInteger = grabber.GetNode("Statistic_Resend_Request_Count");
+					ptrInteger = m_grabber.GetNode("Statistic_Resend_Request_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						resendRequests = ptrInteger->GetValue();
 
-					ptrInteger = grabber.GetNode("Statistic_Resend_Packet_Count");
+					ptrInteger = m_grabber.GetNode("Statistic_Resend_Packet_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						resendPackets = ptrInteger->GetValue();
 
-					ptrInteger = grabber.GetNode("Statistic_Failed_Packet_Count");
+					ptrInteger = m_grabber.GetNode("Statistic_Failed_Packet_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						failedPackets = ptrInteger->GetValue();
 				}
 
 				if (m_deviceClass == Pylon::BaslerUsbDeviceClass)
 				{
-					ptrInteger = grabber.GetNode("Statistic_Missed_Frame_Count");
+					ptrInteger = m_grabber.GetNode("Statistic_Missed_Frame_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						missedFrameCount = ptrInteger->GetValue();
 
-					ptrInteger = grabber.GetNode("Statistic_Resynchronization_Count");
+					ptrInteger = m_grabber.GetNode("Statistic_Resynchronization_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						resyncCount = ptrInteger->GetValue();
 
-					ptrInteger = grabber.GetNode("Statistic_Last_Block_Id");
+					ptrInteger = m_grabber.GetNode("Statistic_Last_Block_Id");
 					if (GenApi::IsReadable(ptrInteger))
 						lastBlockID = ptrInteger->GetValue();
 
-					ptrInteger = transport.GetNode("Statistic_Read_Pipe_Reset_Count");
+					ptrInteger = m_transport.GetNode("Statistic_Read_Pipe_Reset_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						readPipeResetCount = ptrInteger->GetValue();
 
-					ptrInteger = transport.GetNode("Statistic_Write_Pipe_Reset_Count");
+					ptrInteger = m_transport.GetNode("Statistic_Write_Pipe_Reset_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						writePipeResetCount = ptrInteger->GetValue();
 
-					ptrInteger = transport.GetNode("Statistic_Read_Operations_Failed_Count");
+					ptrInteger = m_transport.GetNode("Statistic_Read_Operations_Failed_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						readOperationsFailedCount = ptrInteger->GetValue();
 
-					ptrInteger = transport.GetNode("Statistic_Write_Operations_Failed_Count");
+					ptrInteger = m_transport.GetNode("Statistic_Write_Operations_Failed_Count");
 					if (GenApi::IsReadable(ptrInteger))
 						writeOperationsFailedCount = ptrInteger->GetValue();
+
+					m_devicePort->Read(reinterpret_cast<char*>(&EPU), 0xAFFB0010, 4);
+					m_devicePort->Read(reinterpret_cast<char*>(&PE), 0xAFFB0004, 4);
+					m_devicePort->Read(reinterpret_cast<char*>(&UR), 0xAFFB000C, 4);
+					m_devicePort->Read(reinterpret_cast<char*>(&EPR), 0xAFFB0020, 4);
+					m_devicePort->Read(reinterpret_cast<char*>(&LE), 0xAFFB0008, 4);
+					m_devicePort->Read(reinterpret_cast<char*>(&LR), 0xAFFB0014, 4);
 				}
 			}
 			return true;
@@ -304,9 +309,14 @@ inline bool Statistician::CStatistician::CheckStatistics()
 
 inline bool Statistician::CStatistician::Start()
 {
-	m_stop.store(false);
-	m_tstats = std::thread(&Statistician::CStatistician::CheckStatistics, this);
-	return true;
+	if (m_isInitialized == true && m_stop.load() == true)
+	{
+		m_stop.store(false);
+		m_tstats = std::thread(&Statistician::CStatistician::CheckStatistics, this);
+		return true;
+	}
+	else
+		return false;
 }
 
 inline bool Statistician::CStatistician::Stop()
@@ -322,6 +332,7 @@ inline std::string Statistician::CStatistician::PrintStatistics()
 {
 	try
 	{
+		std::stringstream().swap(m_strStatistics);
 		m_strStatistics << " Statistics:" << std::endl;
 
 		if (m_deviceClass == Pylon::BaslerUsbDeviceClass)
@@ -344,7 +355,13 @@ inline std::string Statistician::CStatistician::PrintStatistics()
 			m_strStatistics << "   Last Error Status                      : " << tlLastErrorStatus << std::endl;
 			m_strStatistics << "   Last Error Status Text                 : " << tlLastErrorStatusText.substr(0, tlLastErrorStatusText.size() - 1) << std::endl; // remove the newline built into this error message string.
 			for (std::set<Pylon::String_t>::iterator it = tlLastErrorStatusTextList.begin(); it != tlLastErrorStatusTextList.end(); ++it)
-				m_strStatistics << "   Other Error Status Text logged         : " << *it; // newline is built into this error message string.
+				m_strStatistics << "   Other Error Status Text logged     : " << *it; // newline is built into this error message string.
+			m_strStatistics << "   EPU                                    : " << EPU << std::endl;
+			m_strStatistics << "   PE                                     : " << PE << std::endl;
+			m_strStatistics << "   UR                                     : " << UR << std::endl;
+			m_strStatistics << "   EPR                                    : " << EPR << std::endl;
+			m_strStatistics << "   LE                                     : " << LE << std::endl;
+			m_strStatistics << "   LR                                     : " << LR << std::endl;
 		}
 
 		if (m_deviceClass == Pylon::BaslerGigEDeviceClass)
